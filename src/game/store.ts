@@ -17,6 +17,7 @@ import {
   sfxStaticBurst,
   sfxUi,
   startMusicBox,
+  suspendAudio,
   stopMusicBox,
   unlockAudio,
 } from "./audio";
@@ -193,7 +194,7 @@ export const useGame = create<GameStore>((set, get) => ({
   toggleCams: () => {
     const sim = get().sim;
     const screen = get().screen;
-    if (!sim || sim.powerOut || (screen !== "play" && screen !== "pause")) return;
+    if (!sim || sim.powerOut || screen !== "play") return;
     const up = !sim.camsUp;
     sfxCam(up);
     setAmbience(up ? "cams" : "office");
@@ -213,10 +214,17 @@ export const useGame = create<GameStore>((set, get) => ({
   skipPhone: () => set({ phone: null }),
   addTrauma: (n) => set({ trauma: Math.min(1, get().trauma + n) }),
   pause: () => {
-    if (get().screen === "play") set({ screen: "pause", prevPlay: "play" });
+    const screen = get().screen;
+    if (screen === "play" || screen === "powerout") {
+      suspendAudio();
+      set({ screen: "pause", prevPlay: screen });
+    }
   },
   unpause: () => {
-    if (get().screen === "pause") set({ screen: "play" });
+    if (get().screen === "pause") {
+      resumeAudio();
+      set({ screen: get().prevPlay });
+    }
   },
   retry: () => {
     const n = get().sim?.night ?? loadSave().night;
@@ -242,8 +250,8 @@ export const useGame = create<GameStore>((set, get) => ({
     get().startNight(n + 1);
   },
   tick: (dt) => {
-    resumeAudio();
     const g = get();
+    if (g.screen !== "pause") resumeAudio();
     let trauma = Math.max(0, g.trauma - dt * 1.6);
     let staticAmt = g.staticAmt + (0.08 - g.staticAmt) * (1 - Math.exp(-dt * 6));
     let hallucination = Math.max(0, g.hallucination - dt);
@@ -267,7 +275,12 @@ export const useGame = create<GameStore>((set, get) => ({
           staticAmt = 0.7;
           sfxStaticBurst();
         }
-        const pan = e.to.includes("west") || e.to === "leftDoor" ? -0.55 : e.to.includes("east") || e.to === "rightDoor" ? 0.55 : 0;
+        const pan =
+          e.to.includes("west") || e.to === "leftDoor"
+            ? -0.55
+            : e.to.includes("east") || e.to === "rightDoor"
+              ? 0.55
+              : 0;
         sfxFoot(pan, e.to.endsWith("Door"));
         if (e.to.endsWith("Door")) trauma = Math.min(1, trauma + 0.25);
       }

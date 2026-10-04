@@ -1,4 +1,4 @@
-import { Camera, Lightbulb, PanelLeftClose, PanelRightClose } from "lucide-react";
+import { Camera, Lightbulb, PanelLeftClose, PanelRightClose, Pause } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ART, CAMS, hourLabel, ROOM_TO_CAM, usageOf } from "./constants";
 import { occupants } from "./sim";
@@ -7,35 +7,50 @@ import type { AnimId, CamId, RoomId } from "./types";
 
 function StaticNoise({ amount }: { amount: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const amountRef = useRef(amount);
+  amountRef.current = amount;
+
   useEffect(() => {
-    const c = ref.current;
-    if (!c) return;
-    const ctx = c.getContext("2d", { alpha: true });
-    if (!ctx) return;
+    const canvas = ref.current;
+    const context = canvas?.getContext("2d", { alpha: true });
+    if (!canvas || !context) return;
+
+    const width = 160;
+    const height = 90;
     let raf = 0;
-    const w = 160;
-    const h = 90;
-    c.width = w;
-    c.height = h;
-    const tick = () => {
-      const a = amount;
-      if (a > 0.04) {
-        const img = ctx.createImageData(w, h);
-        const d = img.data;
-        for (let i = 0; i < d.length; i += 4) {
-          const v = Math.random() * 255;
-          d[i] = d[i + 1] = d[i + 2] = v;
-          d[i + 3] = Math.min(255, a * 220);
+    let lastDraw = 0;
+    let wasVisible = false;
+    canvas.width = width;
+    canvas.height = height;
+
+    const draw = (now: number) => {
+      if (now - lastDraw >= 66) {
+        const alpha = amountRef.current;
+        if (alpha > 0.04) {
+          const image = context.createImageData(width, height);
+          const pixels = image.data;
+          for (let i = 0; i < pixels.length; i += 4) {
+            const value = Math.random() * 255;
+            pixels[i] = value;
+            pixels[i + 1] = value;
+            pixels[i + 2] = value;
+            pixels[i + 3] = Math.min(255, alpha * 220);
+          }
+          context.putImageData(image, 0, 0);
+          wasVisible = true;
+        } else if (wasVisible) {
+          context.clearRect(0, 0, width, height);
+          wasVisible = false;
         }
-        ctx.putImageData(img, 0, 0);
-      } else {
-        ctx.clearRect(0, 0, w, h);
+        lastDraw = now;
       }
-      raf = requestAnimationFrame(tick);
+      raf = requestAnimationFrame(draw);
     };
-    raf = requestAnimationFrame(tick);
+
+    raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [amount]);
+  }, []);
+
   return (
     <canvas
       ref={ref}
@@ -103,6 +118,7 @@ export function PlayView() {
   const lookSide = useGame((s) => s.lookSide);
   const setLook = useGame((s) => s.setLook);
   const toggleCams = useGame((s) => s.toggleCams);
+  const pause = useGame((s) => s.pause);
   const setCam = useGame((s) => s.setCam);
   const skipPhone = useGame((s) => s.skipPhone);
   const phone = useGame((s) => s.phone);
@@ -116,37 +132,68 @@ export function PlayView() {
   const pan = useRef(0.5);
   const target = useRef(0.5);
   const [held, setHeld] = useState<Record<string, boolean>>({});
+  const heldCodes = useRef(new Set<string>());
 
   useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-      setHeld((h) => ({ ...h, [k]: true }));
-      if (k === " " || k === "c") {
-        e.preventDefault();
-        toggleCams();
+    const keyName = (event: KeyboardEvent) => event.key.toLowerCase();
+    const directionFor = (code: string, key: string) => {
+      if (code === "KeyA" || code === "ArrowLeft" || key === "a" || key === "arrowleft") {
+        return "left";
       }
-      if (k === "q") useGame.getState().toggleDoor("left");
-      if (k === "w") useGame.getState().toggleLight("left");
-      if (k === "o") useGame.getState().toggleLight("right");
-      if (k === "p") useGame.getState().toggleDoor("right");
-      if (k === "escape") {
-        const st = useGame.getState();
-        if (st.screen === "play") st.pause();
-        else if (st.screen === "pause") st.unpause();
+      if (code === "KeyD" || code === "ArrowRight" || key === "d" || key === "arrowright") {
+        return "right";
       }
-      if (k >= "1" && k <= "9") {
-        const cam = CAMS[Number(k) - 1];
+      return null;
+    };
+    const down = (event: KeyboardEvent) => {
+      const key = keyName(event);
+      const code = event.code || key;
+      const direction = directionFor(code, key);
+      if (code === "Space" || code === "ArrowLeft" || code === "ArrowRight") {
+        event.preventDefault();
+      }
+      if (event.repeat || heldCodes.current.has(code)) return;
+      heldCodes.current.add(code);
+      if (direction) setHeld((previous) => ({ ...previous, [direction]: true }));
+
+      if (code === "Space" || code === "KeyC" || key === " ") toggleCams();
+      if (code === "KeyQ" || key === "q") useGame.getState().toggleDoor("left");
+      if (code === "KeyW" || key === "w") useGame.getState().toggleLight("left");
+      if (code === "KeyO" || key === "o") useGame.getState().toggleLight("right");
+      if (code === "KeyP" || key === "p") useGame.getState().toggleDoor("right");
+      if (code === "Escape" || key === "escape") {
+        const state = useGame.getState();
+        if (state.screen === "play" || state.screen === "powerout") state.pause();
+        else if (state.screen === "pause") state.unpause();
+      }
+
+      const digit = /^Digit([1-9])$/.exec(code)?.[1] ?? (/^[1-9]$/.test(key) ? key : null);
+      if (digit) {
+        const cam = CAMS[Number(digit) - 1];
         if (cam) setCam(cam.id);
       }
     };
-    const up = (e: KeyboardEvent) => {
-      setHeld((h) => ({ ...h, [e.key.toLowerCase()]: false }));
+    const up = (event: KeyboardEvent) => {
+      const key = keyName(event);
+      const code = event.code || key;
+      heldCodes.current.delete(code);
+      const direction = directionFor(code, key);
+      if (direction) setHeld((previous) => ({ ...previous, [direction]: false }));
     };
+    const clearHeld = () => {
+      heldCodes.current.clear();
+      setHeld({});
+    };
+
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", clearHeld);
+    document.addEventListener("visibilitychange", clearHeld);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", clearHeld);
+      document.removeEventListener("visibilitychange", clearHeld);
     };
   }, [setCam, toggleCams]);
 
@@ -156,8 +203,8 @@ export function PlayView() {
     const loop = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      if (held["a"] || held["arrowleft"]) target.current = Math.max(0, target.current - dt * 1.5);
-      if (held["d"] || held["arrowright"]) target.current = Math.min(1, target.current + dt * 1.5);
+      if (held.left) target.current = Math.max(0, target.current - dt * 1.5);
+      if (held.right) target.current = Math.min(1, target.current + dt * 1.5);
       pan.current += (target.current - pan.current) * (1 - Math.exp(-12 * dt));
       const el = panRef.current;
       if (el) {
@@ -189,8 +236,12 @@ export function PlayView() {
 
   const onPointer = (e: React.PointerEvent) => {
     if (cams) return;
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    if (e.pointerType === "touch" && e.type === "pointerdown") {
+      target.current = x < 0.33 ? 0 : x > 0.67 ? 1 : x;
+      return;
+    }
     if (x < 0.22) target.current = Math.max(0, target.current - 0.04);
     else if (x > 0.78) target.current = Math.min(1, target.current + 0.04);
     else target.current = x;
@@ -271,7 +322,10 @@ export function PlayView() {
                     src={ART.lurk}
                     alt=""
                     className="pointer-events-none absolute bottom-0 left-1/2 h-[70%] -translate-x-1/2 object-contain mix-blend-lighten"
-                    style={{ opacity: 0.2 + dashPeek * 0.8, transform: `translate(-50%, ${(1 - dashPeek) * 20}%)` }}
+                    style={{
+                      opacity: 0.2 + dashPeek * 0.8,
+                      transform: `translate(-50%, ${(1 - dashPeek) * 20}%)`,
+                    }}
                   />
                 )}
               </>
@@ -287,7 +341,8 @@ export function PlayView() {
           <div className="relative h-[42%] w-full shrink-0 border-t border-paper/15 bg-ink md:h-full md:w-[min(42%,380px)] md:border-l md:border-t-0">
             <div className="relative mx-auto h-[78%] w-[92%] max-w-sm">
               {CAMS.map((c) => {
-                const threat = occupants(sim, c.room).length > 0 || (c.id === "1C" && dashPeek > 0.4);
+                const threat =
+                  occupants(sim, c.room).length > 0 || (c.id === "1C" && dashPeek > 0.4);
                 return (
                   <button
                     key={c.id}
@@ -337,6 +392,17 @@ export function PlayView() {
           ))}
         </div>
       </div>
+      {(screen === "play" || screen === "powerout") && (
+        <button
+          type="button"
+          className="game-pause-button"
+          aria-label="Pause night"
+          title="Pause night"
+          onClick={pause}
+        >
+          <Pause className="size-4" aria-hidden="true" />
+        </button>
+      )}
 
       {phone && (
         <button
@@ -348,14 +414,16 @@ export function PlayView() {
             {phone.slice(0, Math.floor(phoneI))}
             <span className="opacity-50">▌</span>
           </p>
-          <span className="mt-2 block font-hud text-[10px] tracking-widest text-mute">TAP TO SKIP</span>
+          <span className="mt-2 block font-hud text-[10px] tracking-widest text-mute">
+            TAP TO SKIP
+          </span>
         </button>
       )}
 
       {!powerOut && (
         <button
           type="button"
-          className="absolute bottom-3 left-1/2 z-50 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-sm border border-paper/25 bg-void/70 px-5 font-hud text-xs tracking-[0.2em] text-paper md:bottom-5"
+          className="game-camera-toggle absolute left-1/2 z-50 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-sm border border-paper/25 bg-void/70 px-5 font-hud text-xs tracking-[0.2em] text-paper"
           onClick={toggleCams}
         >
           <Camera className="size-4" />

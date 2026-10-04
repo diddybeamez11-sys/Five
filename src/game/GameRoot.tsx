@@ -26,7 +26,7 @@ function MuteBtn() {
   return (
     <button
       type="button"
-      className="absolute right-3 top-3 z-[60] flex size-11 items-center justify-center text-paper/80"
+      className="game-mute-button text-paper/80"
       aria-label={muted ? "Unmute" : "Mute"}
       onClick={toggle}
     >
@@ -41,16 +41,23 @@ function Boot() {
   const pct = useGame((s) => s.loadPct);
   useEffect(() => {
     let n = 0;
-    const t = window.setInterval(() => {
+    let cancelled = false;
+    let finishTimer = 0;
+    const progressTimer = window.setInterval(() => {
       n = Math.min(90, n + 8);
       setLoad(n);
     }, 80);
     void preload().then(() => {
-      clearInterval(t);
+      window.clearInterval(progressTimer);
+      if (cancelled) return;
       setLoad(100);
-      window.setTimeout(boot, 280);
+      finishTimer = window.setTimeout(boot, 280);
     });
-    return () => clearInterval(t);
+    return () => {
+      cancelled = true;
+      window.clearInterval(progressTimer);
+      window.clearTimeout(finishTimer);
+    };
   }, [boot, setLoad]);
   return (
     <div className="flex h-full flex-col items-center justify-center bg-void px-6">
@@ -94,8 +101,8 @@ function Menu() {
           )}
         </div>
         <p className="mt-12 max-w-xs font-body text-sm leading-relaxed text-mute">
-          Night security. 12 AM to 6 AM. Watch the halls. Close the doors. Don't waste the
-          power.
+          Night security. Tap or drag at the left and right edges to look around. Check the cameras,
+          use the hall controls carefully, and make it to 6 AM without wasting power.
         </p>
       </div>
       <div className="pointer-events-none absolute inset-y-0 right-0 w-[72%] md:w-[62%]">
@@ -132,7 +139,9 @@ function Newspaper() {
           &ldquo;The figures in the halls get restless after midnight,&rdquo; a spokesman said.
           &ldquo;Doors work. Power doesn't last. That's the briefing.&rdquo;
         </p>
-        <p className="mt-6 font-hud text-[11px] tracking-widest text-[#7a2a22]">CLICK TO CONTINUE</p>
+        <p className="mt-6 font-hud text-[11px] tracking-widest text-[#7a2a22]">
+          CLICK TO CONTINUE
+        </p>
       </article>
     </button>
   );
@@ -146,9 +155,15 @@ function Intro() {
     return () => clearTimeout(t);
   }, [begin]);
   return (
-    <button type="button" className="flex h-full w-full flex-col items-center justify-center bg-void" onClick={begin}>
+    <button
+      type="button"
+      className="flex h-full w-full flex-col items-center justify-center bg-void"
+      onClick={begin}
+    >
       <p className="font-hud text-sm tracking-[0.4em] text-mute">12 AM</p>
-      <p className="mt-3 font-display text-5xl text-paper">Night {sim?.night === 7 ? "Custom" : sim?.night}</p>
+      <p className="mt-3 font-display text-5xl text-paper">
+        Night {sim?.night === 7 ? "Custom" : sim?.night}
+      </p>
     </button>
   );
 }
@@ -213,7 +228,9 @@ function NightClear() {
     <div className="flex h-full flex-col items-center justify-center bg-void px-6">
       <p className="font-hud text-sm tracking-[0.3em] text-mute">SHIFT COMPLETE</p>
       <p className="mt-3 font-display text-4xl text-paper">6 AM</p>
-      <p className="mt-2 font-body text-mute">You survived Night {sim?.night === 7 ? "Custom" : sim?.night}.</p>
+      <p className="mt-2 font-body text-mute">
+        You survived Night {sim?.night === 7 ? "Custom" : sim?.night}.
+      </p>
       <button type="button" className="menu-link mt-10" onClick={next}>
         Continue
       </button>
@@ -328,6 +345,7 @@ export function GameRoot() {
     };
     raf = requestAnimationFrame(loop);
     const vis = () => {
+      if (document.visibilityState === "hidden") useGame.getState().pause();
       last.current = performance.now();
     };
     document.addEventListener("visibilitychange", vis);

@@ -69,6 +69,10 @@ export function resumeAudio() {
   if (ctx && ctx.state === "suspended") void ctx.resume();
 }
 
+export function suspendAudio() {
+  if (ctx && ctx.state === "running") void ctx.suspend();
+}
+
 function playNoise(opts: {
   dur: number;
   gain: number;
@@ -193,7 +197,14 @@ export function setAmbience(kind: "office" | "cams" | "powerout" | "menu") {
 
 export function sfxDoor(close: boolean, side: "left" | "right") {
   const pan = side === "left" ? -0.7 : 0.7;
-  playNoise({ dur: 0.22, gain: close ? 0.55 : 0.32, pan, bp: close ? 140 : 280, q: 1.4, rate: 0.8 });
+  playNoise({
+    dur: 0.22,
+    gain: close ? 0.55 : 0.32,
+    pan,
+    bp: close ? 140 : 280,
+    q: 1.4,
+    rate: 0.8,
+  });
   beep(close ? 90 : 140, 0.12, 0.2, "square", pan);
 }
 
