@@ -7,7 +7,7 @@ Capacitor wraps that static bundle as Android.
 
 Requirements: Node 22+, Java 21, Android Studio/Android SDK.
 
-npm install
+npm ci
 npm run build:mobile
 npx cap add android
 npx cap sync android
@@ -33,7 +33,7 @@ Do not commit passwords or keystores to the repository.
 ## Android-only workflow
 
 Use the included `.github/workflows/android-apk.yml`.
-Push the project to a GitHub repository, open Actions, select "Build Five Nights at Diddy's APK",
-run the workflow, then download the `Five-Nights-At-Diddys-debug` artifact.
+It builds on pushes to `main` and `arena/**`, or can be run manually from GitHub Actions.
+Download the `Five-Nights-At-Diddys-debug` artifact from the completed workflow run.
 
 The debug APK is installable on Android and is not a Play Store release build.
