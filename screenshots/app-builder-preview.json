@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Five Nights at Diddy's",
+      "hasCanvas": false,
+      "bodyTextLen": 25,
+      "bodyTextHash": "def8984bd149a7a640cf2af92f115d3cf29661facf684f72d7f4971a8f8f9391",
+      "bodyTextPrefix": "Five Nights at... Diddy's",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Five Nights at Diddy's",
+      "hasCanvas": false,
+      "bodyTextLen": 25,
+      "bodyTextHash": "def8984bd149a7a640cf2af92f115d3cf29661facf684f72d7f4971a8f8f9391",
+      "bodyTextPrefix": "Five Nights at... Diddy's",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
